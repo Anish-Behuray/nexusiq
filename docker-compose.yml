@@ -1,0 +1,127 @@
+# ============================================================
+# NexusIQ — Docker Compose (Phase 1)
+# ============================================================
+# 
+# SERVICES:
+#   weaviate   — vector database (port 8080)
+#   backend    — FastAPI API server (port 8000)
+#   frontend   — Streamlit UI (port 8501)
+#
+# HOW TO RUN:
+#   docker compose up -d        # Start all services
+#   docker compose logs -f      # Follow all logs
+#   docker compose down         # Stop everything
+#
+# CONCEPT: Docker Compose vs running locally
+# ------------------------------------------
+# Running locally: python + uvicorn + weaviate all started separately
+# Docker Compose: one command starts everything in isolated containers
+#
+# Containers communicate via Docker's internal network ("nexusiq-network")
+# The backend container calls Weaviate at http://weaviate:8080
+# NOT at localhost:8080 (that's your host machine, not inside the container)
+#
+# CONCEPT: Why "volumes"?
+# Docker containers are ephemeral — data is lost when container stops.
+# Volumes persist data to your host machine.
+# weaviate_data persists the vector index across restarts.
+# ============================================================
+
+version: "3.9"
+
+services:
+
+  # ─── Weaviate Vector Database ─────────────────────────────
+  weaviate:
+    image: semitechnologies/weaviate:1.24.4
+    container_name: nexusiq_weaviate
+    ports:
+      - "8080:8080"   # Weaviate HTTP API
+      - "50051:50051" # Weaviate gRPC (faster queries)
+    environment:
+      # Authentication: disabled for local dev (Phase 2 enables it)
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      
+      # Persistence: store data to disk
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      
+      # OpenAI module: allows Weaviate to call OpenAI for embeddings
+      ENABLE_MODULES: "text2vec-openai"
+      DEFAULT_VECTORIZER_MODULE: "text2vec-openai"
+      OPENAI_APIKEY: ${OPENAI_API_KEY}  # Passed from .env
+      
+      # Cluster configuration (single node for Phase 1)
+      CLUSTER_HOSTNAME: "node1"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - nexusiq-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FastAPI Backend ───────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    container_name: nexusiq_backend
+    ports:
+      - "8000:8000"
+    environment:
+      # These come from your .env file
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SECRET_KEY: ${SECRET_KEY}
+      # IMPORTANT: Use container names, not localhost, for internal communication
+      WEAVIATE_URL: http://weaviate:8080
+      DATABASE_URL: sqlite:////app/data/nexusiq.db
+      APP_ENV: development
+      DEBUG: "true"
+    volumes:
+      - ./data:/app/data          # Persist SQLite DB and uploaded files
+      - .:/app                    # Mount source code for hot reload
+    depends_on:
+      weaviate:
+        condition: service_healthy  # Wait for Weaviate to be ready
+    networks:
+      - nexusiq-network
+    # Use uvicorn with --reload for development (auto-restarts on code changes)
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Streamlit Frontend ────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.frontend
+    container_name: nexusiq_frontend
+    ports:
+      - "8501:8501"
+    environment:
+      # Streamlit connects to backend via container name
+      API_BASE_URL: http://backend:8000/api/v1
+    volumes:
+      - ./frontend:/app/frontend  # Hot reload frontend too
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - nexusiq-network
+    command: streamlit run frontend/app.py --server.address 0.0.0.0
+
+# ─── Persistent Volumes ─────────────────────────────────────
+volumes:
+  weaviate_data:
+    name: nexusiq_weaviate_data
+
+# ─── Network ────────────────────────────────────────────────
+networks:
+  nexusiq-network:
+    name: nexusiq-network
+    driver: bridge

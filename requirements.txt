@@ -1,0 +1,68 @@
+# ============================================================
+# NexusIQ — Python Dependencies
+# Install with: pip install -r requirements.txt
+#
+# Organized by layer so you understand what each package does.
+# ============================================================
+
+# ─── Core Python Utilities ──────────────────────────────────
+python-dotenv==1.0.0        # Loads .env files into os.environ
+pydantic==2.5.0             # Data validation — the backbone of FastAPI schemas
+pydantic-settings==2.1.0    # Pydantic v2 settings management (reads from .env)
+
+# ─── Web Framework (Backend API) ────────────────────────────
+fastapi==0.109.0            # Our API framework — async, fast, auto-docs
+uvicorn[standard]==0.27.0   # ASGI server that runs FastAPI
+httpx==0.26.0               # Async HTTP client (for calling external APIs)
+python-multipart==0.0.6     # Required for FastAPI file uploads
+
+# ─── Authentication ─────────────────────────────────────────
+python-jose[cryptography]==3.3.0  # JWT token creation and validation
+passlib[bcrypt]==1.7.4            # Password hashing (bcrypt is industry standard)
+
+# ─── Database ───────────────────────────────────────────────
+sqlalchemy==2.0.25          # ORM — maps Python classes to DB tables
+aiosqlite==0.19.0           # Async SQLite driver for Phase 1
+alembic==1.13.1             # DB migration tool (like git for your schema)
+
+# ─── LLM & AI Orchestration ─────────────────────────────────
+openai==1.12.0              # OpenAI API client (GPT-4o, embeddings)
+langchain==0.1.6            # Core LangChain library
+langchain-openai==0.0.6     # LangChain's OpenAI integration
+langchain-community==0.0.19 # Community integrations (Weaviate, etc.)
+langgraph==0.0.26           # Multi-agent graph orchestration — our core framework
+
+# ─── RAG & Vector Database ──────────────────────────────────
+llama-index==0.10.6                   # RAG pipeline framework
+llama-index-vector-stores-weaviate==0.1.4  # Weaviate integration for LlamaIndex
+llama-index-embeddings-openai==0.1.5  # OpenAI embeddings via LlamaIndex
+weaviate-client==4.4.1                # Weaviate vector database client
+
+# ─── Document Processing (Data Ingestion) ───────────────────
+pypdf==3.17.4               # PDF reading and text extraction
+python-docx==1.1.0          # Word document (.docx) reading
+unstructured==0.12.4        # Universal document parser (PDF, HTML, MD, etc.)
+markdown==3.5.2             # Markdown parsing
+beautifulsoup4==4.12.3      # HTML parsing and scraping
+tiktoken==0.5.2             # Token counting (OpenAI's tokenizer)
+
+# ─── Frontend (Phase 1 Demo UI) ─────────────────────────────
+streamlit==1.31.0           # Rapid UI for AI demos — our Phase 1 frontend
+
+# ─── Observability & Evaluation ─────────────────────────────
+langsmith==0.0.87           # LangSmith agent tracing and evaluation
+ragas==0.1.5                # RAG evaluation metrics (faithfulness, relevance, etc.)
+
+# ─── Testing ────────────────────────────────────────────────
+pytest==7.4.4               # Test runner
+pytest-asyncio==0.23.3      # Async test support
+pytest-cov==4.1.0           # Code coverage reports
+
+# ─── Development Utilities ──────────────────────────────────
+rich==13.7.0                # Beautiful terminal output (colored logs, tables)
+loguru==0.7.2               # Better logging than Python's built-in logging
+tenacity==8.2.3             # Retry logic with exponential backoff
+
+# ─── Version pins (added after local validation) ────────────
+bcrypt==4.0.1               # passlib compatibility; bcrypt>=4.1 breaks passlib 1.7.4
+email-validator==2.3.0      # Required for Pydantic's EmailStr type
