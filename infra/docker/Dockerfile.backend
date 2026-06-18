@@ -1,0 +1,60 @@
+# infra/docker/Dockerfile.backend
+# =================================
+# Multi-stage Docker build for the NexusIQ backend.
+#
+# CONCEPT: Multi-stage builds
+# ----------------------------
+# Stage 1 (builder): Install all dependencies (can be large/messy)
+# Stage 2 (runtime): Copy only the built artifacts (small, clean)
+#
+# Result: A production image that is ~60% smaller than a single-stage build.
+# Smaller images = faster deploys, lower storage costs, smaller attack surface.
+#
+# For Phase 1 development, we use a single stage for simplicity.
+# Phase 2 will use the multi-stage pattern.
+
+FROM python:3.11-slim
+
+# Set working directory inside container
+WORKDIR /app
+
+# ─── System dependencies ────────────────────────────────────
+# These are OS-level packages required by Python libraries:
+# - build-essential: C compiler (needed for some Python packages)
+# - libpq-dev: PostgreSQL client (for Phase 2)
+# - curl: for health checks
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*  # Clean up to reduce image size
+
+# ─── Python dependencies ────────────────────────────────────
+# Install requirements BEFORE copying source code.
+# WHY: Docker caches layers. If requirements.txt hasn't changed,
+# Docker reuses the cached layer — much faster rebuilds.
+# If we copied source first, ANY code change would invalidate
+# the requirements cache, forcing a full reinstall every time.
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ─── Application source ─────────────────────────────────────
+COPY . .
+
+# ─── Create necessary directories ───────────────────────────
+RUN mkdir -p data/raw data/processed data/eval logs
+
+# ─── Run as non-root user ───────────────────────────────────
+# SECURITY: Never run production containers as root.
+# If an attacker breaks out of the app, they'd be root on the host.
+# Running as 'nexusiq' user limits the blast radius.
+RUN useradd -m nexusiq && chown -R nexusiq:nexusiq /app
+USER nexusiq
+
+# ─── Expose port ────────────────────────────────────────────
+EXPOSE 8000
+
+# Default command (overridden in docker-compose.yml)
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
